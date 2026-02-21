@@ -8,47 +8,54 @@ import Modal from "./components/Modal";
 function App() {
   const [account, setAccount] = useState("");
   const [contract, setContract] = useState(null);
-  const [provider, setProvider] = useState(null);
   const [modalOpen, setModalOpen] = useState(false);
 
   useEffect(() => {
-  const loadProvider = async () => {
-    if (window.ethereum) {
-      const provider = new ethers.BrowserProvider(window.ethereum);
+    const loadProvider = async () => {
+      if (window.ethereum) {
+        const provider = new ethers.BrowserProvider(window.ethereum);
 
-      await provider.send("eth_requestAccounts", []);
+        await provider.send("eth_requestAccounts", []);
 
-      const signer = await provider.getSigner();
-      const address = await signer.getAddress();
-      setAccount(address);
+        const signer = await provider.getSigner();
+        const address = await signer.getAddress();
+        setAccount(address);
 
-      const contractAddress = "0x9fE46736679d2D9a65F0992F2272dE9f3c7fa6e0";
+        const contractAddress = "0x5FbDB2315678afecb367f032d93F642f64180aa3";
 
-      const contract = new ethers.Contract(
-        contractAddress,
-        Upload.abi,
-        signer
-      );
+        const uploadContract = new ethers.Contract(
+          contractAddress,
+          Upload.abi,
+          signer
+        );
 
-      console.log(contract);
+        setContract(uploadContract);
+      } else {
+        alert("Please install MetaMask");
+      }
+    };
 
-      setContract(contract);
-      setProvider(provider);
-    } else {
-      console.error("Please install MetaMask!");
-    }
-  };
-
-  loadProvider();
-}, []);
+    loadProvider();
+  }, []);
 
   return (
     <>
-      <div>
-        <h1>Decentralized File System</h1>
-      </div>
+       <div>
+      <h2>Decentralized File System</h2>
+      <p>Account: {account}</p>
+
+      <FileUpload contract={contract} account={account} />
+
+      <Display contract={contract} account={account} />
+
+      {modalOpen && (
+        <Modal contract={contract} setModalOpen={setModalOpen} />
+      )}
+
+      <button onClick={() => setModalOpen(true)}>Share Access</button>
+    </div>
     </>
-  );
+  );  
 }
 
 export default App;

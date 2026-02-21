@@ -1,23 +1,25 @@
 // SPDX-License-Identifier: MIT
-pragma solidity >=0.7.0 <0.9.0;
+pragma solidity ^0.8.20;
 
 contract Upload {
+
     struct Access {
         address user;
-        bool access; //true or false
+        bool access;
     }
-    mapping(address => string[]) value;
-    mapping(address => mapping(address => bool)) ownership;
-    mapping(address => Access[]) accessList;
-    mapping(address => mapping(address => bool)) previousData;
+
+    mapping(address => string[]) private value;
+    mapping(address => mapping(address => bool)) public ownership;
+    mapping(address => Access[]) private accessList;
+    mapping(address => mapping(address => bool)) private previousData;
 
     function add(string memory url) external {
         value[msg.sender].push(url);
     }
 
     function allow(address user) external {
-        //def
         ownership[msg.sender][user] = true;
+
         if (previousData[msg.sender][user]) {
             for (uint i = 0; i < accessList[msg.sender].length; i++) {
                 if (accessList[msg.sender][i].user == user) {
@@ -29,8 +31,10 @@ contract Upload {
             previousData[msg.sender][user] = true;
         }
     }
-    function disallow(address user) public {
+
+    function disallow(address user) external {
         ownership[msg.sender][user] = false;
+
         for (uint i = 0; i < accessList[msg.sender].length; i++) {
             if (accessList[msg.sender][i].user == user) {
                 accessList[msg.sender][i].access = false;
@@ -43,10 +47,11 @@ contract Upload {
             _user == msg.sender || ownership[_user][msg.sender],
             "You don't have access"
         );
+
         return value[_user];
     }
 
-    function shareAccess() public view returns (Access[] memory) {
+    function shareAccess() external view returns (Access[] memory) {
         return accessList[msg.sender];
     }
 }
