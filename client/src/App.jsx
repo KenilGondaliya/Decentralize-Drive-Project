@@ -65,7 +65,7 @@ function App() {
             <i className="fas fa-wallet"></i> Connected Account
           </span>
           <span className="account-address">
-            {account ? `${account.slice(0, 6)}...${account.slice(-4)}` : 'Not connected'}
+            {account ? account : 'Not connected'}
           </span>
           {account && (
             <span className="tooltip" data-tooltip="Connected to MetaMask">
