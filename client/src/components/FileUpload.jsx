@@ -3,10 +3,24 @@ import axios from "axios";
 
 export default function FileUpload({ contract, account }) {
   const [file, setFile] = useState(null);
-   const handleSubmit = async (e) => {
-    e.preventDefault();
+  const [uploading, setUploading] = useState(false);
+  const [message, setMessage] = useState({ type: '', text: '' });
 
-    if (!file || !contract) return;
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    
+    if (!file) {
+      setMessage({ type: 'error', text: 'Please select a file' });
+      return;
+    }
+    
+    if (!contract) {
+      setMessage({ type: 'error', text: 'Contract not initialized' });
+      return;
+    }
+
+    setUploading(true);
+    setMessage({ type: '', text: '' });
 
     try {
       const formData = new FormData();
@@ -25,26 +39,70 @@ export default function FileUpload({ contract, account }) {
       );
 
       const ImgHash = `https://gateway.pinata.cloud/ipfs/${resFile.data.IpfsHash}`;
-
       const tx = await contract.add(ImgHash);
       await tx.wait();
 
-      alert("Image uploaded successfully!");
+      setMessage({ type: 'success', text: 'File uploaded successfully!' });
       setFile(null);
+      
+      // Reset file input
+      e.target.reset();
     } catch (error) {
       console.error(error);
-      alert("Upload failed");
+      setMessage({ type: 'error', text: 'Upload failed. Please try again.' });
+    } finally {
+      setUploading(false);
     }
   };
 
   return (
     <form onSubmit={handleSubmit}>
-      <input
-        type="file"
-        disabled={!account}
-        onChange={(e) => setFile(e.target.files[0])}
-      />
-      <button type="submit">Upload</button>
+      {message.text && (
+        <div className={`message ${message.type}`}>
+          <i className={`fas fa-${message.type === 'success' ? 'check-circle' : 'exclamation-circle'}`}></i>
+          {message.text}
+        </div>
+      )}
+
+      <div className="form-group">
+        <input
+          type="file"
+          className="file-input"
+          disabled={!account || uploading}
+          onChange={(e) => setFile(e.target.files[0])}
+          accept="image/*"
+        />
+        {file && (
+          <small style={{ display: 'block', marginTop: '0.5rem', color: '#666' }}>
+            Selected: {file.name}
+          </small>
+        )}
+      </div>
+
+      <button 
+        type="submit" 
+        className="btn" 
+        disabled={!account || uploading}
+      >
+        {uploading ? (
+          <>
+            <i className="fas fa-spinner fa-spin"></i>
+            Uploading...
+          </>
+        ) : (
+          <>
+            <i className="fas fa-cloud-upload-alt"></i>
+            Upload File
+          </>
+        )}
+      </button>
+
+      {!account && (
+        <p style={{ color: '#ff6b6b', marginTop: '1rem' }}>
+          <i className="fas fa-exclamation-triangle"></i>
+          Please connect your wallet to upload files
+        </p>
+      )}
     </form>
   );
 }
