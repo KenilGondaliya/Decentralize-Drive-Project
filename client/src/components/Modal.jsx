@@ -1,12 +1,12 @@
 import { useState, useEffect } from "react";
 
-export default function Modal({ setModalOpen, contract }) {
+export default function Modal({ setModalOpen, contract, account }) {
   const [address, setAddress] = useState("");
   const [accessList, setAccessList] = useState([]);
-  const [sharing, setSharing] = useState(false);
+  const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState({ type: '', text: '' });
 
-  const share = async () => {
+  const grantAccess = async () => {
     if (!address) {
       setMessage({ type: 'error', text: 'Please enter an address' });
       return;
@@ -17,38 +17,58 @@ export default function Modal({ setModalOpen, contract }) {
       return;
     }
 
-    setSharing(true);
+    if (address.toLowerCase() === account.toLowerCase()) {
+      setMessage({ type: 'error', text: 'Cannot grant access to yourself' });
+      return;
+    }
+
+    setLoading(true);
     setMessage({ type: '', text: '' });
 
     try {
-      const tx = await contract.allow(address);
+      // Using grantAccess() as per your smart contract
+      const tx = await contract.grantAccess(address);
       await tx.wait();
       setMessage({ type: 'success', text: 'Access granted successfully!' });
       setAddress("");
       
       // Refresh access list
-      const list = await contract.shareAccess();
-      setAccessList(list);
+      await loadAccessList();
     } catch (err) {
       console.error(err);
-      setMessage({ type: 'error', text: 'Transaction failed. Please try again.' });
+      setMessage({ type: 'error', text: err.message || 'Transaction failed. Please try again.' });
     } finally {
-      setSharing(false);
+      setLoading(false);
+    }
+  };
+
+  const revokeAccess = async (userAddress) => {
+    if (!contract) return;
+
+    try {
+      const tx = await contract.revokeAccess(userAddress);
+      await tx.wait();
+      setMessage({ type: 'success', text: 'Access revoked successfully!' });
+      await loadAccessList();
+    } catch (err) {
+      console.error(err);
+      setMessage({ type: 'error', text: err.message || 'Failed to revoke access' });
+    }
+  };
+
+  const loadAccessList = async () => {
+    if (contract) {
+      try {
+        // Using getAccessList() as per your contract
+        const list = await contract.getAccessList();
+        setAccessList(list);
+      } catch (error) {
+        console.error("Error loading access list:", error);
+      }
     }
   };
 
   useEffect(() => {
-    const loadAccessList = async () => {
-      if (contract) {
-        try {
-          const list = await contract.shareAccess();
-          setAccessList(list);
-        } catch (error) {
-          console.error("Error loading access list:", error);
-        }
-      }
-    };
-
     loadAccessList();
   }, [contract]);
 
@@ -66,7 +86,9 @@ export default function Modal({ setModalOpen, contract }) {
 
       {message.text && (
         <div className={`message ${message.type}`}>
-          <i className={`fas fa-${message.type === 'success' ? 'check-circle' : 'exclamation-circle'}`}></i>
+          <i className={`fas fa-${
+            message.type === 'success' ? 'check-circle' : 'exclamation-circle'
+          }`}></i>
           {message.text}
         </div>
       )}
@@ -78,17 +100,17 @@ export default function Modal({ setModalOpen, contract }) {
           placeholder="Enter Ethereum address"
           value={address}
           onChange={(e) => setAddress(e.target.value)}
-          disabled={sharing}
+          disabled={loading}
         />
       </div>
 
       <div className="button-group">
         <button 
-          onClick={share} 
+          onClick={grantAccess} 
           className="btn"
-          disabled={sharing}
+          disabled={loading}
         >
-          {sharing ? (
+          {loading ? (
             <>
               <i className="fas fa-spinner fa-spin"></i>
               Granting...
@@ -103,7 +125,7 @@ export default function Modal({ setModalOpen, contract }) {
         <button 
           onClick={() => setModalOpen(false)} 
           className="btn btn-secondary"
-          disabled={sharing}
+          disabled={loading}
         >
           <i className="fas fa-times"></i>
           Cancel
@@ -122,15 +144,28 @@ export default function Modal({ setModalOpen, contract }) {
               <span className="access-address">
                 {item.user.slice(0, 6)}...{item.user.slice(-4)}
               </span>
-              <span className={`access-status ${item.access ? 'status-allowed' : 'status-denied'}`}>
-                {item.access ? 'Allowed' : 'Not Allowed'}
-              </span>
+              <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+                <span className={`access-status ${item.access ? 'status-allowed' : 'status-denied'}`}>
+                  {item.access ? 'Allowed' : 'Not Allowed'}
+                </span>
+                {item.access && (
+                  <button 
+                    className="action-btn delete" 
+                    style={{ width: '24px', height: '24px', fontSize: '0.8rem' }}
+                    onClick={() => revokeAccess(item.user)}
+                    title="Revoke Access"
+                  >
+                    <i className="fas fa-times"></i>
+                  </button>
+                )}
+              </div>
             </div>
           ))
         ) : (
-          <p style={{ color: '#999', textAlign: 'center' }}>
-            No access grants yet
-          </p>
+          <div className="empty-state small">
+            <i className="fas fa-users"></i>
+            <p>No access grants yet</p>
+          </div>
         )}
       </div>
     </>
