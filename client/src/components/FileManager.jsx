@@ -1,5 +1,4 @@
 import { useState, useEffect } from "react";
-import { ethers } from "ethers";
 
 export default function FileManager({ contract, setModalOpen, account, onFileUpdate }) {
   const [files, setFiles] = useState([]);
@@ -217,7 +216,6 @@ export default function FileManager({ contract, setModalOpen, account, onFileUpd
   );
 }
 
-// Helper function
 function formatFileSize(bytes) {
   if (!bytes || bytes === 0) return '0 Bytes';
   const k = 1024;

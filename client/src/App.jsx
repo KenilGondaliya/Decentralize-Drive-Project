@@ -13,7 +13,7 @@ function App() {
   const [contract, setContract] = useState(null);
   const [provider, setProvider] = useState(null);
   const [modalOpen, setModalOpen] = useState(false);
-  const [modalType, setModalType] = useState('access'); // 'access', 'fileManager', 'shared'
+  const [modalType, setModalType] = useState('access');
   const [loading, setLoading] = useState(true);
   const [networkError, setNetworkError] = useState("");
   const [fileCount, setFileCount] = useState(0);
@@ -90,11 +90,10 @@ function App() {
 
   const loadStats = async (contract, address) => {
     try {
-      // Get file count
+  
       const count = await contract.getFileCount(address);
       setFileCount(Number(count));
       
-      // Get access list count
       const accessList = await contract.getAccessList();
       setAccessCount(accessList.filter(item => item.access).length);
       

@@ -183,7 +183,6 @@ export default function SharedWithMe({ contract, setModalOpen, account }) {
   );
 }
 
-// Helper function
 function getFileIcon(fileType) {
   const type = (fileType || '').toLowerCase();
   if (type.startsWith('image/')) return 'fa-image';

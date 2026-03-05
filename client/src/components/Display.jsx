@@ -27,14 +27,12 @@ export default function Display({ contract, account, onFileChange }) {
       const addressToCheck = otherAddress || account;
       console.log("Checking files for address:", addressToCheck);
 
-      // Validate address if provided
       if (otherAddress && !ethers.isAddress(otherAddress)) {
         setMessage({ type: "error", text: "Invalid Ethereum address" });
         setLoading(false);
         return;
       }
 
-      // First, check if we have access
       let hasAccess = true;
       if (otherAddress && otherAddress !== account) {
         try {
@@ -53,7 +51,6 @@ export default function Display({ contract, account, onFileChange }) {
         }
       }
 
-      // Get files
       const data = await contract.getFiles(addressToCheck);
       console.log("Raw data from contract:", data);
 
@@ -64,7 +61,6 @@ export default function Display({ contract, account, onFileChange }) {
         return;
       }
 
-      // Log the structure of the first file to understand the data
       if (data.length > 0) {
         console.log("First file structure:", {
           url: data[0].url,
@@ -76,13 +72,12 @@ export default function Display({ contract, account, onFileChange }) {
         });
       }
 
-      // Process files - check if data is an array of arrays or objects
       let processedFiles = [];
 
       if (Array.isArray(data)) {
-        // Check if it's an array of arrays (tuple style) or array of objects
+        
         if (data.length > 0 && Array.isArray(data[0])) {
-          // Handle tuple format
+          
           processedFiles = data.map((fileTuple, index) => ({
             url: fileTuple[0] || "",
             name: fileTuple[1] || "Unnamed file",
@@ -93,7 +88,7 @@ export default function Display({ contract, account, onFileChange }) {
             id: index,
           }));
         } else {
-          // Handle object format
+          
           processedFiles = data.map((file, index) => ({
             url: file.url || "",
             name: file.name || "Unnamed file",
@@ -105,12 +100,10 @@ export default function Display({ contract, account, onFileChange }) {
           }));
         }
       }
-
-      // Filter out deleted files
+    
       const activeFiles = processedFiles.filter((file) => !file.isDeleted);
       console.log("Processed active files:", activeFiles);
 
-      // Sort files
       const sortedFiles = sortFiles(activeFiles, sortBy);
       setFiles(sortedFiles);
 
@@ -289,9 +282,6 @@ export default function Display({ contract, account, onFileChange }) {
         </div>
       </div>
 
-      {/* Debug Panel - Remove in production */}
-      {/* <DebugPanel /> */}
-
       {message.text && (
         <div className={`message ${message.type}`}>
           <i
@@ -382,7 +372,6 @@ export default function Display({ contract, account, onFileChange }) {
                   <i className="fas fa-download"></i>
                 </a>
 
-                {/* Only show delete for owner */}
                 {(!otherAddress || otherAddress === account) && (
                   <button
                     className="action-btn delete"
@@ -407,7 +396,6 @@ export default function Display({ contract, account, onFileChange }) {
         )
       )}
 
-      {/* Preview Modal */}
       {previewFile && (
         <div className="preview-overlay" onClick={() => setPreviewFile(null)}>
           <div className="preview-content" onClick={(e) => e.stopPropagation()}>

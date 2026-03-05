@@ -26,13 +26,12 @@ export default function Modal({ setModalOpen, contract, account }) {
     setMessage({ type: '', text: '' });
 
     try {
-      // Using grantAccess() as per your smart contract
+      
       const tx = await contract.grantAccess(address);
       await tx.wait();
       setMessage({ type: 'success', text: 'Access granted successfully!' });
       setAddress("");
       
-      // Refresh access list
       await loadAccessList();
     } catch (err) {
       console.error(err);
@@ -59,7 +58,7 @@ export default function Modal({ setModalOpen, contract, account }) {
   const loadAccessList = async () => {
     if (contract) {
       try {
-        // Using getAccessList() as per your contract
+        
         const list = await contract.getAccessList();
         setAccessList(list);
       } catch (error) {

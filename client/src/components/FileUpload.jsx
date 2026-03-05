@@ -39,7 +39,7 @@ export default function FileUpload({
   }, []);
 
   const validateAndSetFile = (selectedFile) => {
-    // Check file size (max 50MB)
+    
     const maxSize = 50 * 1024 * 1024; // 50MB
     if (selectedFile.size > maxSize) {
       setMessage({
@@ -158,11 +158,9 @@ export default function FileUpload({
 
       setFile(null);
       setProgress(100);
-
-      // Reset form
+      
       e.target.reset();
 
-      // Clear success message after 5 seconds
       setTimeout(() => {
         setMessage({ type: "", text: "" });
         setProgress(0);
