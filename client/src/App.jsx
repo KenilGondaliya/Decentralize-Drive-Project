@@ -4,6 +4,8 @@ import { ethers } from "ethers";
 import FileUpload from "./components/FileUpload";
 import Display from "./components/Display";
 import AccessManager from "./components/AccessManager";
+import FileManager from "./components/FileManager";
+import SharedWithMe from "./components/SharedWithMe";
 import "./App.css";
 
 function App() {
@@ -11,23 +13,23 @@ function App() {
   const [contract, setContract] = useState(null);
   const [provider, setProvider] = useState(null);
   const [modalOpen, setModalOpen] = useState(false);
+  const [modalType, setModalType] = useState('access'); // 'access', 'fileManager', 'shared'
   const [loading, setLoading] = useState(true);
   const [networkError, setNetworkError] = useState("");
+  const [fileCount, setFileCount] = useState(0);
+  const [accessCount, setAccessCount] = useState(0);
 
   useEffect(() => {
     const loadProvider = async () => {
       if (window.ethereum) {
         try {
-          // Request account access
           await window.ethereum.request({ method: 'eth_requestAccounts' });
           
           const provider = new ethers.BrowserProvider(window.ethereum);
           setProvider(provider);
           
-          // Get network
           const network = await provider.getNetwork();
           
-          // Check if we're on the correct network (adjust as needed)
           if (network.chainId !== 1337n && network.chainId !== 11155111n) {
             setNetworkError("Please connect to Hardhat (Chain ID: 1337) or Sepolia (Chain ID: 11155111)");
           }
@@ -36,7 +38,6 @@ function App() {
           const address = await signer.getAddress();
           setAccount(address);
 
-          // Contract address - update this with your deployed contract address
           const contractAddress = "0x5FbDB2315678afecb367f032d93F642f64180aa3";
           
           const uploadContract = new ethers.Contract(
@@ -46,6 +47,10 @@ function App() {
           );
 
           setContract(uploadContract);
+          
+          // Load stats
+          await loadStats(uploadContract, address);
+          
         } catch (error) {
           console.error("Error loading provider:", error);
           setNetworkError("Error connecting to MetaMask. Please make sure it's installed and unlocked.");
@@ -60,7 +65,6 @@ function App() {
 
     loadProvider();
 
-    // Handle account changes
     if (window.ethereum) {
       window.ethereum.on('accountsChanged', (accounts) => {
         if (accounts.length > 0) {
@@ -84,13 +88,30 @@ function App() {
     };
   }, []);
 
-  const connectWallet = async () => {
+  const loadStats = async (contract, address) => {
     try {
-      await window.ethereum.request({ method: 'eth_requestAccounts' });
-      window.location.reload();
+      // Get file count
+      const count = await contract.getFileCount(address);
+      setFileCount(Number(count));
+      
+      // Get access list count
+      const accessList = await contract.getAccessList();
+      setAccessCount(accessList.filter(item => item.access).length);
+      
     } catch (error) {
-      console.error("Failed to connect wallet:", error);
+      console.error("Error loading stats:", error);
     }
+  };
+
+  const refreshStats = async () => {
+    if (contract && account) {
+      await loadStats(contract, account);
+    }
+  };
+
+  const openModal = (type) => {
+    setModalType(type);
+    setModalOpen(true);
   };
 
   if (loading) {
@@ -159,18 +180,32 @@ function App() {
 
       <div className="main-content">
         <div className="stats-bar">
-          <div className="stat-item">
+          <div className="stat-item" onClick={() => openModal('fileManager')}>
             <i className="fas fa-file"></i>
-            <span>Your Files</span>
+            <span className="stat-value">{fileCount}</span>
+            <span className="stat-label">Your Files</span>
           </div>
-          <div className="stat-item">
+          <div className="stat-item" onClick={() => openModal('access')}>
             <i className="fas fa-share-alt"></i>
-            <span>Shared Access</span>
+            <span className="stat-value">{accessCount}</span>
+            <span className="stat-label">Shared Access</span>
           </div>
-          <div className="stat-item">
-            <i className="fas fa-database"></i>
-            <span>IPFS Storage</span>
+          <div className="stat-item" onClick={() => openModal('shared')}>
+            <i className="fas fa-users"></i>
+            <span className="stat-value">Shared</span>
+            <span className="stat-label">With Me</span>
           </div>
+        </div>
+
+        <div className="action-buttons">
+          <button className="action-btn-large primary" onClick={() => document.getElementById('file-input').click()}>
+            <i className="fas fa-upload"></i>
+            Upload File
+          </button>
+          <button className="action-btn-large secondary" onClick={() => openModal('access')}>
+            <i className="fas fa-share-alt"></i>
+            Manage Access
+          </button>
         </div>
 
         <div className="main-grid">
@@ -186,6 +221,7 @@ function App() {
               contract={contract} 
               account={account} 
               provider={provider}
+              onUploadSuccess={refreshStats}
             />
           </div>
 
@@ -197,7 +233,11 @@ function App() {
               </h2>
               <p className="card-subtitle">View and manage your uploaded files</p>
             </div>
-            <Display contract={contract} account={account} />
+            <Display 
+              contract={contract} 
+              account={account} 
+              onFileChange={refreshStats}
+            />
           </div>
         </div>
       </div>
@@ -205,22 +245,56 @@ function App() {
       {modalOpen && (
         <div className="modal-overlay" onClick={() => setModalOpen(false)}>
           <div className="modal-container" onClick={e => e.stopPropagation()}>
-            <AccessManager 
-              contract={contract} 
-              setModalOpen={setModalOpen} 
-              account={account} 
-            />
+            {modalType === 'access' && (
+              <AccessManager 
+                contract={contract} 
+                setModalOpen={setModalOpen} 
+                account={account}
+                onAccessChange={refreshStats}
+              />
+            )}
+            {modalType === 'fileManager' && (
+              <FileManager
+                contract={contract}
+                setModalOpen={setModalOpen}
+                account={account}
+                onFileUpdate={refreshStats}
+              />
+            )}
+            {modalType === 'shared' && (
+              <SharedWithMe
+                contract={contract}
+                setModalOpen={setModalOpen}
+                account={account}
+              />
+            )}
           </div>
         </div>
       )}
 
-      <button 
-        className="share-fab" 
-        onClick={() => setModalOpen(true)}
-        title="Manage Access"
-      >
-        <i className="fas fa-share-alt"></i>
-      </button>
+      <div className="fab-menu">
+        <button 
+          className="fab-main" 
+          onClick={() => openModal('access')}
+          title="Manage Access"
+        >
+          <i className="fas fa-share-alt"></i>
+        </button>
+        <button 
+          className="fab-item" 
+          onClick={() => openModal('fileManager')}
+          title="Manage Files"
+        >
+          <i className="fas fa-cog"></i>
+        </button>
+        <button 
+          className="fab-item" 
+          onClick={() => openModal('shared')}
+          title="Shared With Me"
+        >
+          <i className="fas fa-users"></i>
+        </button>
+      </div>
     </div>
   );
 }

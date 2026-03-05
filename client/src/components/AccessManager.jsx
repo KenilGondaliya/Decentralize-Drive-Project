@@ -1,7 +1,8 @@
 import { useState, useEffect, useCallback } from "react";
 import { ethers } from "ethers";
 
-export default function AccessManager({ contract, setModalOpen, account }) {
+export default function AccessManager({ contract, setModalOpen, account, onAccessChange }) {
+
   const [address, setAddress] = useState("");
   const [accessList, setAccessList] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -52,6 +53,7 @@ export default function AccessManager({ contract, setModalOpen, account }) {
       await tx.wait();
       
       setMessage({ type: 'success', text: 'Access granted successfully!' });
+      if (onAccessChange) onAccessChange();
       setAddress("");
       await loadAccessList();
     } catch (err) {
@@ -73,6 +75,7 @@ export default function AccessManager({ contract, setModalOpen, account }) {
       await tx.wait();
       
       setMessage({ type: 'success', text: 'Access revoked successfully!' });
+      if (onAccessChange) onAccessChange();
       await loadAccessList();
     } catch (err) {
       console.error(err);

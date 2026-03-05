@@ -1,15 +1,21 @@
 import { useState, useCallback } from "react";
 import axios from "axios";
 
-export default function FileUpload({ contract, account, provider }) {
+export default function FileUpload({
+  contract,
+  account,
+  provider,
+  onUploadSuccess,
+}) {
   const [file, setFile] = useState(null);
   const [uploading, setUploading] = useState(false);
-  const [message, setMessage] = useState({ type: '', text: '' });
+  const [message, setMessage] = useState({ type: "", text: "" });
   const [progress, setProgress] = useState(0);
   const [dragActive, setDragActive] = useState(false);
 
   const PINATA_API_KEY = "80000672308d07d88748";
-  const PINATA_SECRET_KEY = "c237205f4f9b49ec937167509bfa8b9c283ea8b7e7895fb2759438873fd03d72";
+  const PINATA_SECRET_KEY =
+    "c237205f4f9b49ec937167509bfa8b9c283ea8b7e7895fb2759438873fd03d72";
   const GATEWAY_URL = "https://gateway.pinata.cloud/ipfs/";
 
   const handleDrag = useCallback((e) => {
@@ -26,7 +32,7 @@ export default function FileUpload({ contract, account, provider }) {
     e.preventDefault();
     e.stopPropagation();
     setDragActive(false);
-    
+
     if (e.dataTransfer.files && e.dataTransfer.files[0]) {
       validateAndSetFile(e.dataTransfer.files[0]);
     }
@@ -36,15 +42,15 @@ export default function FileUpload({ contract, account, provider }) {
     // Check file size (max 50MB)
     const maxSize = 50 * 1024 * 1024; // 50MB
     if (selectedFile.size > maxSize) {
-      setMessage({ 
-        type: 'error', 
-        text: 'File too large. Maximum size is 50MB.' 
+      setMessage({
+        type: "error",
+        text: "File too large. Maximum size is 50MB.",
       });
       return;
     }
 
     setFile(selectedFile);
-    setMessage({ type: 'success', text: `Selected: ${selectedFile.name}` });
+    setMessage({ type: "success", text: `Selected: ${selectedFile.name}` });
   };
 
   const handleFileChange = (e) => {
@@ -63,8 +69,8 @@ export default function FileUpload({ contract, account, provider }) {
         uploadedBy: account,
         timestamp: Date.now().toString(),
         size: file.size.toString(),
-        type: file.type
-      }
+        type: file.type,
+      },
     });
     formData.append("pinataMetadata", metadata);
 
@@ -79,89 +85,93 @@ export default function FileUpload({ contract, account, provider }) {
         formData,
         {
           headers: {
-            'Content-Type': 'multipart/form-data',
-            'pinata_api_key': PINATA_API_KEY,
-            'pinata_secret_api_key': PINATA_SECRET_KEY,
+            "Content-Type": "multipart/form-data",
+            pinata_api_key: PINATA_API_KEY,
+            pinata_secret_api_key: PINATA_SECRET_KEY,
           },
           onUploadProgress: (progressEvent) => {
             if (progressEvent.total) {
               const percentCompleted = Math.round(
-                (progressEvent.loaded * 100) / progressEvent.total
+                (progressEvent.loaded * 100) / progressEvent.total,
               );
               setProgress(percentCompleted);
             }
           },
-        }
+        },
       );
 
       return response.data.IpfsHash;
     } catch (error) {
       console.error("Pinata upload error:", error);
-      throw new Error("Failed to upload to IPFS. Please check your Pinata keys.");
+      throw new Error(
+        "Failed to upload to IPFS. Please check your Pinata keys.",
+      );
     }
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    
+
     if (!file) {
-      setMessage({ type: 'error', text: 'Please select a file' });
+      setMessage({ type: "error", text: "Please select a file" });
       return;
     }
-    
+
     if (!contract) {
-      setMessage({ type: 'error', text: 'Contract not initialized' });
+      setMessage({ type: "error", text: "Contract not initialized" });
       return;
     }
 
     if (!account) {
-      setMessage({ type: 'error', text: 'Please connect your wallet' });
+      setMessage({ type: "error", text: "Please connect your wallet" });
       return;
     }
 
     setUploading(true);
-    setMessage({ type: '', text: '' });
+    setMessage({ type: "", text: "" });
     setProgress(0);
 
     try {
       // Upload to IPFS via Pinata
       const ipfsHash = await uploadToPinata(file);
-      
+
       // Construct IPFS URL
       const fileUrl = `${GATEWAY_URL}${ipfsHash}`;
-      
+
       // Add file info to blockchain
       const tx = await contract.addFile(
-        fileUrl, 
-        file.name, 
-        file.type || 'application/octet-stream',
-        file.size
+        fileUrl,
+        file.name,
+        file.type || "application/octet-stream",
+        file.size,
       );
-      
+
       await tx.wait();
 
-      setMessage({ 
-        type: 'success', 
-        text: 'File uploaded successfully!' 
+      setMessage({
+        type: "success",
+        text: "File uploaded successfully!",
       });
-      
+
+      await tx.wait();
+      if (onUploadSuccess) onUploadSuccess();
+
       setFile(null);
       setProgress(100);
-      
+
       // Reset form
       e.target.reset();
 
       // Clear success message after 5 seconds
       setTimeout(() => {
-        setMessage({ type: '', text: '' });
+        setMessage({ type: "", text: "" });
         setProgress(0);
       }, 5000);
-
     } catch (error) {
       console.error("Upload error:", error);
-      setMessage({ 
-        type: 'error', 
-        text: error.message || 'Upload failed. Please try again.' 
+      setMessage({
+        type: "error",
+        text: error.message || "Upload failed. Please try again.",
       });
     } finally {
       setUploading(false);
@@ -170,28 +180,39 @@ export default function FileUpload({ contract, account, provider }) {
 
   const removeSelectedFile = () => {
     setFile(null);
-    setMessage({ type: '', text: '' });
+    setMessage({ type: "", text: "" });
   };
 
   return (
     <form onSubmit={handleSubmit} className="upload-form">
       {message.text && (
         <div className={`message ${message.type}`}>
-          <i className={`fas fa-${
-            message.type === 'success' ? 'check-circle' : 
-            message.type === 'info' ? 'info-circle' : 'exclamation-circle'
-          }`}></i>
+          <i
+            className={`fas fa-${
+              message.type === "success"
+                ? "check-circle"
+                : message.type === "info"
+                ? "info-circle"
+                : "exclamation-circle"
+            }`}
+          ></i>
           {message.text}
-          {message.type === 'success' && (
-            <button type="button" className="message-close" onClick={() => setMessage({ type: '', text: '' })}>
+          {message.type === "success" && (
+            <button
+              type="button"
+              className="message-close"
+              onClick={() => setMessage({ type: "", text: "" })}
+            >
               <i className="fas fa-times"></i>
             </button>
           )}
         </div>
       )}
 
-      <div 
-        className={`upload-area ${dragActive ? 'drag-active' : ''} ${!account ? 'disabled' : ''}`}
+      <div
+        className={`upload-area ${dragActive ? "drag-active" : ""} ${
+          !account ? "disabled" : ""
+        }`}
         onDragEnter={handleDrag}
         onDragLeave={handleDrag}
         onDragOver={handleDrag}
@@ -205,7 +226,7 @@ export default function FileUpload({ contract, account, provider }) {
           onChange={handleFileChange}
           accept="image/*,video/*,audio/*,.pdf,.doc,.docx,.txt,.zip"
         />
-        
+
         <label htmlFor="file-input" className="upload-label">
           <i className="fas fa-cloud-upload-alt upload-icon"></i>
           <h3>Drag & Drop or Click to Upload</h3>
@@ -217,11 +238,13 @@ export default function FileUpload({ contract, account, provider }) {
             <i className="fas fa-file"></i>
             <div className="file-info">
               <span className="file-name">{file.name}</span>
-              <span className="file-size">({(file.size / (1024 * 1024)).toFixed(2)} MB)</span>
+              <span className="file-size">
+                ({(file.size / (1024 * 1024)).toFixed(2)} MB)
+              </span>
             </div>
-            <button 
-              type="button" 
-              className="remove-file" 
+            <button
+              type="button"
+              className="remove-file"
               onClick={removeSelectedFile}
               disabled={uploading}
             >
@@ -233,8 +256,8 @@ export default function FileUpload({ contract, account, provider }) {
         {uploading && (
           <div className="progress-container">
             <div className="progress-bar">
-              <div 
-                className="progress-fill" 
+              <div
+                className="progress-fill"
                 style={{ width: `${progress}%` }}
               ></div>
             </div>
@@ -243,9 +266,9 @@ export default function FileUpload({ contract, account, provider }) {
         )}
       </div>
 
-      <button 
-        type="submit" 
-        className="btn upload-btn" 
+      <button
+        type="submit"
+        className="btn upload-btn"
         disabled={!account || uploading || !file}
       >
         {uploading ? (
