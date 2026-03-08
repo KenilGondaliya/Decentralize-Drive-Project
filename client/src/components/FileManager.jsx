@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 
-export default function FileManager({ contract, setModalOpen, account, onFileUpdate }) {
+export default function FileManager({ uploadContract, setModalOpen, account, onFileUpdate }) {
   const [files, setFiles] = useState([]);
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState({ type: '', text: '' });
@@ -13,13 +13,18 @@ export default function FileManager({ contract, setModalOpen, account, onFileUpd
   }, []);
 
   const loadFiles = async () => {
-    if (!contract) return;
+    if (!uploadContract) return;
     
     setLoading(true);
     try {
-      const data = await contract.getFiles(account);
+      const data = await uploadContract.getFiles(account);
       const activeFiles = data
-        .map((file, index) => ({ ...file, id: index }))
+        .map((file, index) => ({ 
+          ...file, 
+          id: index,
+          timestamp: Number(file.timestamp),
+          size: Number(file.size)
+        }))
         .filter(file => !file.isDeleted);
       setFiles(activeFiles);
     } catch (error) {
@@ -38,7 +43,7 @@ export default function FileManager({ contract, setModalOpen, account, onFileUpd
 
     setLoading(true);
     try {
-      const tx = await contract.updateFile(
+      const tx = await uploadContract.updateFile(
         fileId,
         newUrl || editingFile.url,
         newName || editingFile.name
@@ -66,7 +71,7 @@ export default function FileManager({ contract, setModalOpen, account, onFileUpd
 
     setLoading(true);
     try {
-      const tx = await contract.removeFile(fileId);
+      const tx = await uploadContract.removeFile(fileId);
       await tx.wait();
       
       setMessage({ type: 'success', text: 'File deleted successfully' });
@@ -82,10 +87,6 @@ export default function FileManager({ contract, setModalOpen, account, onFileUpd
 
   const formatDate = (timestamp) => {
     return new Date(Number(timestamp) * 1000).toLocaleString();
-  };
-
-  const formatAddress = (addr) => {
-    return `${addr.slice(0, 6)}...${addr.slice(-4)}`;
   };
 
   return (

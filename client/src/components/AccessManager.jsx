@@ -1,8 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { ethers } from "ethers";
 
-export default function AccessManager({ contract, setModalOpen, account, onAccessChange }) {
-
+export default function AccessManager({ uploadContract, setModalOpen, account, onAccessChange }) {
   const [address, setAddress] = useState("");
   const [accessList, setAccessList] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -11,11 +10,10 @@ export default function AccessManager({ contract, setModalOpen, account, onAcces
   const [activeTab, setActiveTab] = useState('single');
 
   const loadAccessList = useCallback(async () => {
-    if (!contract) return;
+    if (!uploadContract) return;
 
     try {
-      const list = await contract.getAccessList();
-      // Filter out duplicates and format
+      const list = await uploadContract.getAccessList();
       const uniqueList = list.filter((item, index, self) => 
         index === self.findIndex((t) => t.user === item.user)
       );
@@ -23,7 +21,7 @@ export default function AccessManager({ contract, setModalOpen, account, onAcces
     } catch (error) {
       console.error("Error loading access list:", error);
     }
-  }, [contract]);
+  }, [uploadContract]);
 
   useEffect(() => {
     loadAccessList();
@@ -49,7 +47,7 @@ export default function AccessManager({ contract, setModalOpen, account, onAcces
     setMessage({ type: '', text: '' });
 
     try {
-      const tx = await contract.grantAccess(address);
+      const tx = await uploadContract.grantAccess(address);
       await tx.wait();
       
       setMessage({ type: 'success', text: 'Access granted successfully!' });
@@ -71,7 +69,7 @@ export default function AccessManager({ contract, setModalOpen, account, onAcces
 
     setLoading(true);
     try {
-      const tx = await contract.revokeAccess(userAddress);
+      const tx = await uploadContract.revokeAccess(userAddress);
       await tx.wait();
       
       setMessage({ type: 'success', text: 'Access revoked successfully!' });
@@ -98,7 +96,7 @@ export default function AccessManager({ contract, setModalOpen, account, onAcces
 
     setLoading(true);
     try {
-      const tx = await contract.batchGrantAccess(addresses);
+      const tx = await uploadContract.batchGrantAccess(addresses);
       await tx.wait();
       
       setMessage({ type: 'success', text: `Access granted to ${addresses.length} users` });
@@ -128,7 +126,7 @@ export default function AccessManager({ contract, setModalOpen, account, onAcces
 
     setLoading(true);
     try {
-      const tx = await contract.batchRevokeAccess(usersWithAccess);
+      const tx = await uploadContract.batchRevokeAccess(usersWithAccess);
       await tx.wait();
       
       setMessage({ type: 'success', text: 'Access revoked for all users' });

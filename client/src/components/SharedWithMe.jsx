@@ -1,31 +1,11 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { ethers } from "ethers";
 
-export default function SharedWithMe({ contract, setModalOpen, account }) {
+export default function SharedWithMe({ uploadContract, setModalOpen, account }) {
   const [sharedFiles, setSharedFiles] = useState([]);
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState({ type: '', text: '' });
   const [selectedOwner, setSelectedOwner] = useState("");
-
-  useEffect(() => {
-    loadSharedFiles();
-  }, []);
-
-  const loadSharedFiles = async () => {
-    if (!contract) return;
-    
-    setLoading(true);
-    try {
-      // Note: You'll need to implement a way to track shared files
-      // This is a placeholder - you might want to emit events and index them
-      setMessage({ type: 'info', text: 'This feature requires event indexing' });
-    } catch (error) {
-      console.error("Error loading shared files:", error);
-      setMessage({ type: 'error', text: 'Failed to load shared files' });
-    } finally {
-      setLoading(false);
-    }
-  };
 
   const checkAccess = async (owner) => {
     if (!owner || !ethers.isAddress(owner)) {
@@ -35,12 +15,18 @@ export default function SharedWithMe({ contract, setModalOpen, account }) {
 
     setLoading(true);
     try {
-      const hasAccess = await contract.checkAccess(owner, account);
+      const hasAccess = await uploadContract.checkAccess(owner, account);
       
       if (hasAccess) {
-        const files = await contract.getFiles(owner);
+        const files = await uploadContract.getFiles(owner);
         const activeFiles = files
-          .map((file, index) => ({ ...file, owner, fileId: index }))
+          .map((file, index) => ({ 
+            ...file, 
+            owner, 
+            fileId: index,
+            timestamp: Number(file.timestamp),
+            size: Number(file.size)
+          }))
           .filter(file => !file.isDeleted);
         
         setSharedFiles(activeFiles);
@@ -71,6 +57,18 @@ export default function SharedWithMe({ contract, setModalOpen, account }) {
     const sizes = ['Bytes', 'KB', 'MB', 'GB'];
     const i = Math.floor(Math.log(bytes) / Math.log(k));
     return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+  };
+
+  const getFileIcon = (fileType) => {
+    const type = (fileType || '').toLowerCase();
+    if (type.startsWith('image/')) return 'fa-image';
+    if (type.startsWith('video/')) return 'fa-video';
+    if (type.startsWith('audio/')) return 'fa-music';
+    if (type.includes('pdf')) return 'fa-file-pdf';
+    if (type.includes('word') || type.includes('document')) return 'fa-file-word';
+    if (type.includes('zip') || type.includes('compressed')) return 'fa-file-archive';
+    if (type.includes('text')) return 'fa-file-alt';
+    return 'fa-file';
   };
 
   return (
@@ -181,16 +179,4 @@ export default function SharedWithMe({ contract, setModalOpen, account }) {
       </div>
     </>
   );
-}
-
-function getFileIcon(fileType) {
-  const type = (fileType || '').toLowerCase();
-  if (type.startsWith('image/')) return 'fa-image';
-  if (type.startsWith('video/')) return 'fa-video';
-  if (type.startsWith('audio/')) return 'fa-music';
-  if (type.includes('pdf')) return 'fa-file-pdf';
-  if (type.includes('word') || type.includes('document')) return 'fa-file-word';
-  if (type.includes('zip') || type.includes('compressed')) return 'fa-file-archive';
-  if (type.includes('text')) return 'fa-file-alt';
-  return 'fa-file';
 }

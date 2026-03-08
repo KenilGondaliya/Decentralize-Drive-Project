@@ -1,8 +1,10 @@
 import { useState, useCallback } from "react";
 import axios from "axios";
+import { ethers } from "ethers";
 
 export default function FileUpload({
-  contract,
+  uploadContract,
+  nftContract,
   account,
   provider,
   onUploadSuccess,
@@ -12,6 +14,7 @@ export default function FileUpload({
   const [message, setMessage] = useState({ type: "", text: "" });
   const [progress, setProgress] = useState(0);
   const [dragActive, setDragActive] = useState(false);
+  const [mintAsNFT, setMintAsNFT] = useState(false);
 
   const PINATA_API_KEY = "80000672308d07d88748";
   const PINATA_SECRET_KEY =
@@ -39,7 +42,6 @@ export default function FileUpload({
   }, []);
 
   const validateAndSetFile = (selectedFile) => {
-    
     const maxSize = 50 * 1024 * 1024; // 50MB
     if (selectedFile.size > maxSize) {
       setMessage({
@@ -109,6 +111,43 @@ export default function FileUpload({
     }
   };
 
+  const mintNFT = async (fileUrl, fileName, fileType, fileSize) => {
+    if (!nftContract) {
+      throw new Error("NFT contract not initialized");
+    }
+
+    // Create metadata for NFT
+    const metadata = {
+      name: fileName,
+      description: `NFT version of ${fileName}`,
+      image: fileUrl,
+      file_url: fileUrl,
+      file_type: fileType,
+      file_size: fileSize,
+      uploaded_at: new Date().toISOString(),
+      uploaded_by: account
+    };
+
+    const metadataRes = await axios.post(
+      "https://api.pinata.cloud/pinning/pinJSONToIPFS",
+      metadata,
+      {
+        headers: {
+          pinata_api_key: PINATA_API_KEY,
+          pinata_secret_api_key: PINATA_SECRET_KEY
+        }
+      }
+    );
+
+    const metadataCID = metadataRes.data.IpfsHash;
+    const metadataURI = `ipfs://${metadataCID}`;
+
+    const tx = await nftContract.mintFileNFT(metadataURI, fileUrl);
+    await tx.wait();
+
+    return metadataCID;
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
 
@@ -117,8 +156,8 @@ export default function FileUpload({
       return;
     }
 
-    if (!contract) {
-      setMessage({ type: "error", text: "Contract not initialized" });
+    if (!uploadContract) {
+      setMessage({ type: "error", text: "Upload contract not initialized" });
       return;
     }
 
@@ -134,18 +173,15 @@ export default function FileUpload({
     try {
       // Upload to IPFS via Pinata
       const ipfsHash = await uploadToPinata(file);
-
-      // Construct IPFS URL
       const fileUrl = `${GATEWAY_URL}${ipfsHash}`;
 
       // Add file info to blockchain
-      const tx = await contract.addFile(
+      const tx = await uploadContract.addFile(
         fileUrl,
         file.name,
         file.type || "application/octet-stream",
         file.size,
       );
-
       await tx.wait();
 
       setMessage({
@@ -153,11 +189,28 @@ export default function FileUpload({
         text: "File uploaded successfully!",
       });
 
-      await tx.wait();
+      // Mint as NFT if option is selected
+      if (mintAsNFT && nftContract) {
+        try {
+          const metadataCID = await mintNFT(fileUrl, file.name, file.type, file.size);
+          setMessage({
+            type: "success",
+            text: `File uploaded and minted as NFT! IPFS: ${ipfsHash}`,
+          });
+        } catch (nftError) {
+          console.error("NFT minting error:", nftError);
+          setMessage({
+            type: "warning",
+            text: `File uploaded but NFT minting failed: ${nftError.message}`,
+          });
+        }
+      }
+
       if (onUploadSuccess) onUploadSuccess();
 
       setFile(null);
       setProgress(100);
+      setMintAsNFT(false);
       
       e.target.reset();
 
@@ -189,6 +242,8 @@ export default function FileUpload({
             className={`fas fa-${
               message.type === "success"
                 ? "check-circle"
+                : message.type === "warning"
+                ? "exclamation-triangle"
                 : message.type === "info"
                 ? "info-circle"
                 : "exclamation-circle"
@@ -264,6 +319,23 @@ export default function FileUpload({
         )}
       </div>
 
+      {nftContract && (
+        <div className="checkbox-option">
+          <label className="checkbox-label">
+            <input
+              type="checkbox"
+              checked={mintAsNFT}
+              onChange={(e) => setMintAsNFT(e.target.checked)}
+              disabled={uploading || !file}
+            />
+            <span>
+              <i className="fas fa-certificate"></i>
+              Mint as NFT after upload
+            </span>
+          </label>
+        </div>
+      )}
+
       <button
         type="submit"
         className="btn upload-btn"
@@ -277,7 +349,7 @@ export default function FileUpload({
         ) : (
           <>
             <i className="fas fa-cloud-upload-alt"></i>
-            Upload to IPFS
+            {mintAsNFT ? "Upload & Mint NFT" : "Upload to IPFS"}
           </>
         )}
       </button>
