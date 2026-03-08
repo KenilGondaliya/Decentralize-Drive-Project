@@ -261,16 +261,6 @@ export default function Display({ contract, account, onFileChange }) {
         </div>
 
         <div className="sort-controls">
-          <select
-            className="sort-select"
-            value={sortBy}
-            onChange={(e) => setSortBy(e.target.value)}
-            disabled={loading}
-          >
-            <option value="date">Sort by Date</option>
-            <option value="name">Sort by Name</option>
-            <option value="size">Sort by Size</option>
-          </select>
 
           <button
             onClick={getFiles}

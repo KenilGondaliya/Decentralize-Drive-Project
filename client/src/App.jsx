@@ -166,7 +166,7 @@ function App() {
               <i className="fas fa-wallet"></i>
             </span>
             <span className="account-address" title={account}>
-              {account ? `${account.slice(0, 6)}...${account.slice(-4)}` : 'Not connected'}
+              {account ? account : 'Not connected'}
             </span>
             {account && (
               <span className="status-badge connected" title="Connected to MetaMask">
@@ -178,34 +178,6 @@ function App() {
       </header>
 
       <div className="main-content">
-        <div className="stats-bar">
-          <div className="stat-item" onClick={() => openModal('fileManager')}>
-            <i className="fas fa-file"></i>
-            <span className="stat-value">{fileCount}</span>
-            <span className="stat-label">Your Files</span>
-          </div>
-          <div className="stat-item" onClick={() => openModal('access')}>
-            <i className="fas fa-share-alt"></i>
-            <span className="stat-value">{accessCount}</span>
-            <span className="stat-label">Shared Access</span>
-          </div>
-          <div className="stat-item" onClick={() => openModal('shared')}>
-            <i className="fas fa-users"></i>
-            <span className="stat-value">Shared</span>
-            <span className="stat-label">With Me</span>
-          </div>
-        </div>
-
-        <div className="action-buttons">
-          <button className="action-btn-large primary" onClick={() => document.getElementById('file-input').click()}>
-            <i className="fas fa-upload"></i>
-            Upload File
-          </button>
-          <button className="action-btn-large secondary" onClick={() => openModal('access')}>
-            <i className="fas fa-share-alt"></i>
-            Manage Access
-          </button>
-        </div>
 
         <div className="main-grid">
           <div className="card upload-card">
