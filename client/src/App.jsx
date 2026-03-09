@@ -169,7 +169,6 @@ function App() {
         </div>
       </div>
     );
-
   }
 
   return (
@@ -212,7 +211,19 @@ function App() {
           File System
         </button>
         <button
-          className={`tab-nav-btn ${activeTab === "nfts" ? "active" : ""}`}
+          className={`tab-nav-btn ${
+            activeTab === "nfts" ? (
+              <NFTGallery
+                nftContract={nftContract}
+                uploadContract={uploadContract} // Add this line
+                account={account}
+                provider={provider}
+                onTransfer={refreshStats} // Optional: to refresh stats after transfer
+              />
+            ) : (
+              ""
+            )
+          }`}
           onClick={() => setActiveTab("nfts")}
         >
           <i className="fas fa-image"></i>
