@@ -151,9 +151,9 @@ body {
   gap: 2rem;
   margin-bottom: 2rem;
   padding: 1rem;
-  background: white;
+  background: #8174db;
   border-radius: 1rem;
-  box-shadow: var(--shadow);
+  
 }
 
 .stat-item {
@@ -1446,7 +1446,7 @@ body {
     padding: 1rem;
   }
 
-  .stats-bar {
+  .stats- bar {
     flex-direction: column;
     gap: 0.5rem;
   }

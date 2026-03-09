@@ -12,6 +12,47 @@ export default function Display({ uploadContract, nftContract, account, onFileCh
 
   const GATEWAY_URL = "https://gateway.pinata.cloud/ipfs/";
 
+  // Helper function to format address
+  const formatAddress = (addr) => {
+    if (!addr) return "Unknown";
+    return `${addr.slice(0, 6)}...${addr.slice(-4)}`;
+  };
+
+  // Get all NFTs and their owners from the NFT contract
+  const getAllNFTs = async () => {
+    if (!nftContract) return new Map();
+    
+    try {
+      const total = await nftContract.tokenCounter();
+      console.log("Total NFTs in contract:", total.toString());
+      
+      const nftMap = new Map();
+      
+      for (let i = 0; i < total; i++) {
+        try {
+          const owner = await nftContract.ownerOf(i);
+          const info = await nftContract.nftInfo(i);
+          
+          // Store in map with fileUrl as key
+          nftMap.set(info.fileUrl, {
+            tokenId: i,
+            owner: owner,
+            fileUrl: info.fileUrl
+          });
+          
+          console.log(`NFT #${i}: Owner=${owner}, File=${info.fileUrl}`);
+        } catch (err) {
+          console.error(`Error getting NFT ${i}:`, err);
+        }
+      }
+      
+      return nftMap;
+    } catch (err) {
+      console.error("Error getting all NFTs:", err);
+      return new Map();
+    }
+  };
+
   const getFiles = useCallback(async () => {
     if (!uploadContract || !account) return;
 
@@ -27,6 +68,7 @@ export default function Display({ uploadContract, nftContract, account, onFileCh
         return;
       }
 
+      // Check access if viewing someone else's files
       if (otherAddress && otherAddress !== account) {
         try {
           const hasAccess = await uploadContract.checkAccess(otherAddress, account);
@@ -43,6 +85,7 @@ export default function Display({ uploadContract, nftContract, account, onFileCh
         }
       }
 
+      // Get files from Upload contract
       const data = await uploadContract.getFiles(addressToCheck);
       console.log("Raw files data:", data);
 
@@ -56,39 +99,47 @@ export default function Display({ uploadContract, nftContract, account, onFileCh
         id: index,
         isNFT: false,
         tokenId: null,
+        nftOwner: null,
       }));
 
       const activeFiles = processedFiles.filter((file) => !file.isDeleted);
       console.log("Active files:", activeFiles);
 
-      // Check which files are NFTs
-      if (nftContract) {
+      // Get all NFTs from the NFT contract
+      if (nftContract && activeFiles.length > 0) {
         console.log("Checking NFT status for files...");
-        const totalNFTs = await nftContract.tokenCounter();
-        console.log("Total NFTs minted:", totalNFTs.toString());
         
-        for (let file of activeFiles) {
-          try {
-            // Try multiple ways to check if file is NFT
-            const tokenId = await nftContract.fileToToken(file.url);
-            const tokenIdNum = Number(tokenId);
-            console.log(`File ${file.name} tokenId:`, tokenIdNum);
-            
-            if (tokenIdNum > 0) {
-              file.isNFT = true;
-              file.tokenId = tokenIdNum;
-              console.log(`✅ File ${file.name} is NFT with tokenId: ${tokenIdNum}`);
-            } else {
-              console.log(`❌ File ${file.name} is not an NFT`);
-            }
-          } catch (err) {
-            console.log(`Error checking NFT status for ${file.name}:`, err.message);
+        // Get all NFTs at once for efficiency
+        const nftMap = await getAllNFTs();
+        console.log("NFT Map:", Array.from(nftMap.entries()));
+        
+        // Update each file with NFT info if it exists in the map
+        const filesWithNFTStatus = activeFiles.map(file => {
+          const nftInfo = nftMap.get(file.url);
+          
+          if (nftInfo) {
+            console.log(`File ${file.name} is NFT #${nftInfo.tokenId} owned by ${nftInfo.owner}`);
+            return {
+              ...file,
+              isNFT: true,
+              tokenId: nftInfo.tokenId,
+              nftOwner: nftInfo.owner
+            };
+          } else {
+            console.log(`File ${file.name} is not an NFT`);
+            return {
+              ...file,
+              isNFT: false,
+              tokenId: null,
+              nftOwner: null
+            };
           }
-        }
+        });
+        
+        setFiles(sortFiles(filesWithNFTStatus, sortBy));
+      } else {
+        setFiles(sortFiles(activeFiles, sortBy));
       }
-
-      const sortedFiles = sortFiles(activeFiles, sortBy);
-      setFiles(sortedFiles);
 
       if (activeFiles.length === 0 && !otherAddress) {
         setMessage({ type: "info", text: "No files found" });
@@ -169,7 +220,12 @@ export default function Display({ uploadContract, nftContract, account, onFileCh
       console.log("Transaction confirmed:", receipt);
 
       setMessage({ type: "success", text: "NFT minted successfully!" });
-      await getFiles(); // Refresh to show NFT badge
+      
+      // Wait for blockchain to update and refresh
+      setTimeout(async () => {
+        await getFiles();
+      }, 3000);
+      
     } catch (err) {
       console.error("Error minting NFT:", err);
       setMessage({ type: "error", text: err.message || "Failed to mint NFT" });
@@ -178,7 +234,7 @@ export default function Display({ uploadContract, nftContract, account, onFileCh
     }
   };
 
-  const transferNFT = async (tokenId) => {
+  const transferNFT = async (tokenId, fileUrl) => {
     const to = prompt("Enter recipient address");
     if (!to) return;
 
@@ -187,11 +243,37 @@ export default function Display({ uploadContract, nftContract, account, onFileCh
       return;
     }
 
+    if (to.toLowerCase() === account.toLowerCase()) {
+      alert("Cannot transfer to yourself");
+      return;
+    }
+
     try {
+      console.log(`Transferring NFT ${tokenId} to ${to}`);
       const tx = await nftContract.transferNFT(to, tokenId);
+      console.log("Transaction sent:", tx.hash);
+      
       await tx.wait();
-      alert("NFT transferred successfully");
-      getFiles();
+      console.log("Transfer confirmed");
+      
+      // After successful transfer, grant access to the new owner
+      // so they can see this file in their gallery
+      try {
+        console.log(`Granting access to new owner ${to} for the file`);
+        const accessTx = await uploadContract.grantAccess(to);
+        await accessTx.wait();
+        console.log("Access granted successfully");
+      } catch (accessErr) {
+        console.log("Note: Could not auto-grant access (might already have it)", accessErr);
+      }
+      
+      alert("NFT transferred successfully! The new owner can now see this file in their gallery.");
+      
+      // Wait for blockchain to update and refresh
+      setTimeout(async () => {
+        await getFiles();
+      }, 3000);
+      
     } catch (err) {
       console.error(err);
       alert("Transfer failed: " + err.message);
@@ -258,6 +340,27 @@ export default function Display({ uploadContract, nftContract, account, onFileCh
     return (fileType || "").toLowerCase().startsWith("audio/");
   };
 
+  const canMintNFT = (file) => {
+    return !file.isNFT && (!otherAddress || otherAddress === account) && nftContract;
+  };
+
+  const canTransferNFT = (file) => {
+    // Can transfer if:
+    // 1. File is an NFT
+    // 2. Current user is the owner of this NFT
+    // 3. Not viewing someone else's files
+    return file.isNFT && 
+           file.tokenId !== null && 
+           file.tokenId !== undefined && 
+           file.nftOwner && 
+           file.nftOwner.toLowerCase() === account?.toLowerCase() &&
+           (!otherAddress || otherAddress === account);
+  };
+
+  const canDelete = (file) => {
+    return !otherAddress || otherAddress === account;
+  };
+
   return (
     <div className="display-container">
       <div className="display-controls">
@@ -312,8 +415,8 @@ export default function Display({ uploadContract, nftContract, account, onFileCh
           {files.map((file, index) => (
             <div key={index} className="file-card">
               {file.isNFT && (
-                <span className="nft-badge" title="Minted as NFT">
-                  <i className="fas fa-certificate"></i> NFT
+                <span className="nft-badge" title={`NFT #${file.tokenId}`}>
+                  <i className="fas fa-certificate"></i> NFT #{file.tokenId}
                 </span>
               )}
               <div
@@ -368,6 +471,13 @@ export default function Display({ uploadContract, nftContract, account, onFileCh
                     {formatFileSize(Number(file.size))}
                   </span>
                 </div>
+                {file.isNFT && file.nftOwner && (
+                  <div className="nft-owner" style={{ fontSize: '11px', marginTop: '5px', color: '#666' }}>
+                    <i className="fas fa-user"></i> Owner: {file.nftOwner.toLowerCase() === account?.toLowerCase() 
+                      ? "You" 
+                      : formatAddress(file.nftOwner)}
+                  </div>
+                )}
               </div>
 
               <div className="file-actions">
@@ -389,7 +499,7 @@ export default function Display({ uploadContract, nftContract, account, onFileCh
                   <i className="fas fa-download"></i>
                 </a>
 
-                {!file.isNFT && (!otherAddress || otherAddress === account) && nftContract && (
+                {canMintNFT(file) && (
                   <button
                     onClick={() => mintAsNFT(file)}
                     className="action-btn nft"
@@ -400,9 +510,9 @@ export default function Display({ uploadContract, nftContract, account, onFileCh
                   </button>
                 )}
 
-                {file.isNFT && file.tokenId && (
+                {canTransferNFT(file) && (
                   <button
-                    onClick={() => transferNFT(file.tokenId)}
+                    onClick={() => transferNFT(file.tokenId, file.url)}
                     className="action-btn transfer"
                     title="Transfer NFT"
                   >
@@ -410,7 +520,7 @@ export default function Display({ uploadContract, nftContract, account, onFileCh
                   </button>
                 )}
 
-                {(!otherAddress || otherAddress === account) && (
+                {canDelete(file) && (
                   <button
                     className="action-btn delete"
                     onClick={() => handleDelete(file.id)}
@@ -503,9 +613,16 @@ export default function Display({ uploadContract, nftContract, account, onFileCh
                     : "Unknown"}
                 </span>
                 {previewFile.isNFT && (
-                  <span className="nft-indicator">
-                    <strong>NFT:</strong> Yes (Token ID: {previewFile.tokenId})
-                  </span>
+                  <>
+                    <span className="nft-indicator">
+                      <strong>NFT:</strong> Yes (Token ID: {previewFile.tokenId})
+                    </span>
+                    <span>
+                      <strong>Owner:</strong> {previewFile.nftOwner?.toLowerCase() === account?.toLowerCase() 
+                        ? "You" 
+                        : formatAddress(previewFile.nftOwner)}
+                    </span>
+                  </>
                 )}
               </div>
             </div>
