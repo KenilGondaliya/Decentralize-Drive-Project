@@ -234,7 +234,7 @@ export default function Display({ uploadContract, nftContract, account, onFileCh
     }
   };
 
-  const transferNFT = async (tokenId, fileUrl) => {
+  const transferNFT = async (tokenId, fileUrl, fileName, fileType, fileSize, fileTimestamp) => {
     const to = prompt("Enter recipient address");
     if (!to) return;
 
@@ -248,28 +248,60 @@ export default function Display({ uploadContract, nftContract, account, onFileCh
       return;
     }
 
+    setLoading(true);
     try {
       console.log(`Transferring NFT ${tokenId} to ${to}`);
+      
+      // Step 1: Transfer the NFT
       const tx = await nftContract.transferNFT(to, tokenId);
       console.log("Transaction sent:", tx.hash);
       
       await tx.wait();
-      console.log("Transfer confirmed");
+      console.log("NFT Transfer confirmed");
       
-      // After successful transfer, grant access to the new owner
-      // so they can see this file in their gallery
+      // Step 2: Grant access to the new owner so they can view the file
       try {
-        console.log(`Granting access to new owner ${to} for the file`);
+        console.log(`Granting access to new owner ${to}`);
         const accessTx = await uploadContract.grantAccess(to);
         await accessTx.wait();
         console.log("Access granted successfully");
       } catch (accessErr) {
-        console.log("Note: Could not auto-grant access (might already have it)", accessErr);
+        console.log("Note: Could not grant access", accessErr);
       }
       
-      alert("NFT transferred successfully! The new owner can now see this file in their gallery.");
+      // Step 3: Add the file to the new owner's file list in Upload contract
+      try {
+        console.log("Adding file to new owner's gallery...");
+        
+        // Check if the file already exists for the new owner
+        let fileExists = false;
+        try {
+          const newOwnerFiles = await uploadContract.getFiles(to);
+          fileExists = newOwnerFiles.some(f => f.url === fileUrl);
+        } catch (checkErr) {
+          console.log("Error checking existing files:", checkErr);
+        }
+        
+        if (!fileExists) {
+          // Add the file to the new owner's file list
+          const addTx = await uploadContract.addFile(
+            fileUrl,
+            fileName,
+            fileType || "application/octet-stream",
+            fileSize
+          );
+          await addTx.wait();
+          console.log("File added to new owner's gallery");
+        } else {
+          console.log("File already exists in new owner's gallery");
+        }
+      } catch (addErr) {
+        console.error("Error adding file to new owner:", addErr);
+      }
       
-      // Wait for blockchain to update and refresh
+      alert(`NFT transferred successfully to ${formatAddress(to)}! The new owner can now see and transfer this NFT.`);
+      
+      // Wait and refresh
       setTimeout(async () => {
         await getFiles();
       }, 3000);
@@ -277,6 +309,8 @@ export default function Display({ uploadContract, nftContract, account, onFileCh
     } catch (err) {
       console.error(err);
       alert("Transfer failed: " + err.message);
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -512,9 +546,17 @@ export default function Display({ uploadContract, nftContract, account, onFileCh
 
                 {canTransferNFT(file) && (
                   <button
-                    onClick={() => transferNFT(file.tokenId, file.url)}
+                    onClick={() => transferNFT(
+                      file.tokenId, 
+                      file.url, 
+                      file.name, 
+                      file.fileType, 
+                      file.size,
+                      file.timestamp
+                    )}
                     className="action-btn transfer"
                     title="Transfer NFT"
+                    disabled={loading}
                   >
                     <i className="fas fa-exchange-alt"></i>
                   </button>

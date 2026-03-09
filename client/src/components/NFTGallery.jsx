@@ -1,15 +1,23 @@
 import { useState, useEffect } from "react";
+import { ethers } from "ethers";
 import axios from "axios";
 
-export default function NFTGallery({ nftContract, account, provider }) {
+export default function NFTGallery({ nftContract, uploadContract, account, provider, onTransfer }) {
   const [nfts, setNfts] = useState([]);
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState({ type: "", text: "" });
   const [selectedNFT, setSelectedNFT] = useState(null);
   const [history, setHistory] = useState([]);
   const [showHistory, setShowHistory] = useState(false);
+  const [transferring, setTransferring] = useState(false);
 
   const GATEWAY_URL = "https://gateway.pinata.cloud/ipfs/";
+
+  // Helper function to format address
+  const formatAddress = (addr) => {
+    if (!addr) return "Unknown";
+    return `${addr.slice(0, 6)}...${addr.slice(-4)}`;
+  };
 
   useEffect(() => {
     if (nftContract && account) {
@@ -23,6 +31,8 @@ export default function NFTGallery({ nftContract, account, provider }) {
     setLoading(true);
     try {
       const total = await nftContract.tokenCounter();
+      console.log("Loading NFTs, total:", total.toString());
+      
       const nftList = [];
 
       for (let i = 0; i < total; i++) {
@@ -56,6 +66,8 @@ export default function NFTGallery({ nftContract, account, provider }) {
               mintedAt: Number(info.mintedAt)
             }
           });
+          
+          console.log(`Loaded NFT #${tokenId}: Owner=${owner}`);
         } catch (err) {
           console.error(`Error loading NFT ${i}:`, err);
         }
@@ -89,8 +101,87 @@ export default function NFTGallery({ nftContract, account, provider }) {
     setShowHistory(true);
   };
 
-  const formatAddress = (addr) => {
-    return `${addr.slice(0, 6)}...${addr.slice(-4)}`;
+  const transferNFT = async (tokenId, fileUrl, fileName, fileType, fileSize) => {
+    const to = prompt("Enter recipient address");
+    if (!to) return;
+
+    if (!ethers.isAddress(to)) {
+      alert("Invalid address");
+      return;
+    }
+
+    if (to.toLowerCase() === account.toLowerCase()) {
+      alert("Cannot transfer to yourself");
+      return;
+    }
+
+    setTransferring(true);
+    try {
+      console.log(`Transferring NFT ${tokenId} to ${to}`);
+      
+      // Step 1: Transfer the NFT
+      const tx = await nftContract.transferNFT(to, tokenId);
+      console.log("Transaction sent:", tx.hash);
+      
+      await tx.wait();
+      console.log("NFT Transfer confirmed");
+      
+      // Step 2: If uploadContract exists, grant access and add file for the new owner
+      if (uploadContract) {
+        try {
+          console.log(`Granting access to new owner ${to}`);
+          const accessTx = await uploadContract.grantAccess(to);
+          await accessTx.wait();
+          console.log("Access granted successfully");
+        } catch (accessErr) {
+          console.log("Note: Could not grant access", accessErr);
+        }
+        
+        // Step 3: Add the file to the new owner's file list in Upload contract
+        try {
+          console.log("Adding file to new owner's gallery...");
+          
+          // Check if the file already exists for the new owner
+          let fileExists = false;
+          try {
+            const newOwnerFiles = await uploadContract.getFiles(to);
+            fileExists = newOwnerFiles.some(f => f.url === fileUrl);
+          } catch (checkErr) {
+            console.log("Error checking existing files:", checkErr);
+          }
+          
+          if (!fileExists) {
+            // Add the file to the new owner's file list
+            const addTx = await uploadContract.addFile(
+              fileUrl,
+              fileName,
+              fileType || "application/octet-stream",
+              fileSize
+            );
+            await addTx.wait();
+            console.log("File added to new owner's gallery");
+          } else {
+            console.log("File already exists in new owner's gallery");
+          }
+        } catch (addErr) {
+          console.error("Error adding file to new owner:", addErr);
+        }
+      }
+      
+      alert(`NFT transferred successfully to ${formatAddress(to)}!`);
+      
+      // Refresh the NFT list
+      setTimeout(async () => {
+        await loadNFTs();
+        if (onTransfer) onTransfer();
+      }, 3000);
+      
+    } catch (err) {
+      console.error(err);
+      alert("Transfer failed: " + err.message);
+    } finally {
+      setTransferring(false);
+    }
   };
 
   const formatDate = (timestamp) => {
@@ -117,6 +208,10 @@ export default function NFTGallery({ nftContract, account, provider }) {
     return url;
   };
 
+  const canTransfer = (nft) => {
+    return nft.owner?.toLowerCase() === account?.toLowerCase();
+  };
+
   return (
     <div className="nft-gallery-container">
       <div className="nft-header">
@@ -127,7 +222,7 @@ export default function NFTGallery({ nftContract, account, provider }) {
         <button 
           onClick={loadNFTs} 
           className="btn btn-secondary refresh-btn"
-          disabled={loading}
+          disabled={loading || transferring}
         >
           <i className={`fas fa-sync-alt ${loading ? "fa-spin" : ""}`}></i>
           Refresh
@@ -154,9 +249,8 @@ export default function NFTGallery({ nftContract, account, provider }) {
             <div 
               key={nft.tokenId} 
               className="nft-card"
-              onClick={() => handleNFTClick(nft)}
             >
-              <div className="nft-preview">
+              <div className="nft-preview" onClick={() => handleNFTClick(nft)}>
                 {nft.metadata.image ? (
                   <img 
                     src={getImageUrl(nft.metadata.image)}
@@ -187,9 +281,61 @@ export default function NFTGallery({ nftContract, account, provider }) {
                     {formatDate(nft.info.mintedAt)}
                   </span>
                 </div>
-                {nft.owner.toLowerCase() === account.toLowerCase() && (
-                  <span className="owner-badge">You own this</span>
-                )}
+                
+                {/* Owner badge and transfer button */}
+                <div className="nft-actions" style={{ 
+                  display: 'flex', 
+                  justifyContent: 'space-between', 
+                  alignItems: 'center',
+                  marginTop: '10px'
+                }}>
+                  {nft.owner.toLowerCase() === account.toLowerCase() ? (
+                    <>
+                      <span className="owner-badge" style={{
+                        background: '#10b981',
+                        color: 'white',
+                        padding: '4px 8px',
+                        borderRadius: '4px',
+                        fontSize: '12px'
+                      }}>
+                        <i className="fas fa-check-circle"></i> You own this
+                      </span>
+                      <button
+                        onClick={() => transferNFT(
+                          nft.tokenId,
+                          nft.info.fileUrl,
+                          nft.metadata.name || `NFT #${nft.tokenId}`,
+                          nft.metadata.file_type || 'application/octet-stream',
+                          nft.metadata.file_size || 0
+                        )}
+                        className="action-btn transfer"
+                        title="Transfer NFT"
+                        disabled={transferring}
+                        style={{
+                          background: '#3b82f6',
+                          color: 'white',
+                          border: 'none',
+                          padding: '4px 12px',
+                          borderRadius: '4px',
+                          cursor: 'pointer',
+                          fontSize: '12px'
+                        }}
+                      >
+                        <i className="fas fa-exchange-alt"></i> Transfer
+                      </button>
+                    </>
+                  ) : (
+                    <span className="owner-badge" style={{
+                      background: '#6b7280',
+                      color: 'white',
+                      padding: '4px 8px',
+                      borderRadius: '4px',
+                      fontSize: '12px'
+                    }}>
+                      <i className="fas fa-user"></i> Owned by {formatAddress(nft.owner)}
+                    </span>
+                  )}
+                </div>
               </div>
             </div>
           ))}
@@ -228,6 +374,10 @@ export default function NFTGallery({ nftContract, account, provider }) {
               </p>
               <p>
                 <strong>Creator:</strong> {formatAddress(selectedNFT.info.creator)}
+              </p>
+              <p>
+                <strong>Current Owner:</strong> {formatAddress(selectedNFT.owner)}
+                {selectedNFT.owner.toLowerCase() === account.toLowerCase() && " (You)"}
               </p>
               <p>
                 <strong>File URL:</strong> 
@@ -277,21 +427,42 @@ export default function NFTGallery({ nftContract, account, provider }) {
               )}
             </div>
 
-            <div className="history-footer">
+            <div className="history-footer" style={{ 
+              display: 'flex', 
+              gap: '10px', 
+              justifyContent: 'flex-end',
+              padding: '1rem',
+              borderTop: '1px solid #e5e7eb'
+            }}>
+              {selectedNFT.owner.toLowerCase() === account.toLowerCase() && (
+                <button 
+                  className="btn btn-primary"
+                  onClick={() => {
+                    setShowHistory(false);
+                    transferNFT(
+                      selectedNFT.tokenId,
+                      selectedNFT.info.fileUrl,
+                      selectedNFT.metadata.name,
+                      selectedNFT.metadata.file_type,
+                      selectedNFT.metadata.file_size
+                    );
+                  }}
+                  disabled={transferring}
+                >
+                  <i className="fas fa-exchange-alt"></i> Transfer NFT
+                </button>
+              )}
               <button 
-                className="btn btn-primary"
+                className="btn btn-secondary"
                 onClick={() => window.open(getImageUrl(selectedNFT.metadata.image), '_blank')}
               >
-                <i className="fas fa-eye"></i>
-                View Full Image
+                <i className="fas fa-eye"></i> View Full Image
               </button>
               <button 
                 className="btn btn-secondary"
                 onClick={() => window.open(getImageUrl(selectedNFT.info.fileUrl), '_blank')}
-                style={{ marginLeft: '10px' }}
               >
-                <i className="fas fa-download"></i>
-                Download File
+                <i className="fas fa-download"></i> Download File
               </button>
             </div>
           </div>
