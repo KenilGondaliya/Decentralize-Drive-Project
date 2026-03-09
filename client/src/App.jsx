@@ -215,10 +215,10 @@ function App() {
             activeTab === "nfts" ? (
               <NFTGallery
                 nftContract={nftContract}
-                uploadContract={uploadContract} // Add this line
+                uploadContract={uploadContract} 
                 account={account}
                 provider={provider}
-                onTransfer={refreshStats} // Optional: to refresh stats after transfer
+                onTransfer={refreshStats} 
               />
             ) : (
               ""
