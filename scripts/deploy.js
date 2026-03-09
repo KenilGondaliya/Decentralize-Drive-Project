@@ -6,7 +6,7 @@ async function main() {
 
   await upload.waitForDeployment();
 
-   console.log("Library deployed to:", await upload.getAddress());
+  console.log("Library deployed to:", await upload.getAddress());
 }
 
 main().catch((error) => {
