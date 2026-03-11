@@ -13,7 +13,7 @@ export default function NFTGallery({ nftContract, uploadContract, account, provi
 
   const GATEWAY_URL = "https://gateway.pinata.cloud/ipfs/";
 
-  // Helper function to format address
+  
   const formatAddress = (addr) => {
     if (!addr) return "Unknown";
     return `${addr.slice(0, 6)}...${addr.slice(-4)}`;

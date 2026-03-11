@@ -56,7 +56,7 @@ function App() {
 
           setUploadContract(uploadContractInstance);
 
-          // Initialize NFT contract
+          
           const nftContractInstance = new ethers.Contract(
             NFT_CONTRACT_ADDRESS,
             FileNFT.abi,

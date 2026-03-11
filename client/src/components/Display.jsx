@@ -12,13 +12,13 @@ export default function Display({ uploadContract, nftContract, account, onFileCh
 
   const GATEWAY_URL = "https://gateway.pinata.cloud/ipfs/";
 
-  // Helper function to format address
+  
   const formatAddress = (addr) => {
     if (!addr) return "Unknown";
     return `${addr.slice(0, 6)}...${addr.slice(-4)}`;
   };
 
-  // Get all NFTs and their owners from the NFT contract
+  
   const getAllNFTs = async () => {
     if (!nftContract) return new Map();
     
@@ -379,10 +379,7 @@ export default function Display({ uploadContract, nftContract, account, onFileCh
   };
 
   const canTransferNFT = (file) => {
-    // Can transfer if:
-    // 1. File is an NFT
-    // 2. Current user is the owner of this NFT
-    // 3. Not viewing someone else's files
+    
     return file.isNFT && 
            file.tokenId !== null && 
            file.tokenId !== undefined && 

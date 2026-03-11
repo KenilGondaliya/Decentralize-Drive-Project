@@ -17,8 +17,7 @@ export default function FileUpload({
   const [mintAsNFT, setMintAsNFT] = useState(false);
 
   const PINATA_API_KEY = "80000672308d07d88748";
-  const PINATA_SECRET_KEY =
-    "c237205f4f9b49ec937167509bfa8b9c283ea8b7e7895fb2759438873fd03d72";
+  const PINATA_SECRET_KEY = "c237205f4f9b49ec937167509bfa8b9c283ea8b7e7895fb2759438873fd03d72";
   const GATEWAY_URL = "https://gateway.pinata.cloud/ipfs/";
 
   const handleDrag = useCallback((e) => {
